@@ -1,3 +1,5 @@
+module dack;
+
 import
 	tango.core.Exception,
 	tango.io.FileScan,
@@ -5,24 +7,69 @@ import
 	tango.io.stream.FileStream,
 	tango.io.stream.LineStream,
 	tango.text.Regex,
-	tango.text.stream.LineIterator
+	tango.text.stream.LineIterator,
+	tango.util.ArgParser
 	;
 
 class DAck {
+private:
 	Regex regex;
-	char[][] ignoredDirNames = [".svn", ".git"];
-	char[][] ignoredFileNames = [".svn", ".git"];
-	char[][] ignoredFileExts = ["o", ".a"];
+	char[] matchFormat;
 
-	struct Match {
-		FilePath path;
-		int line;
+	char[][] ignoredDirNames = [".svn", ".git"];
+	char[][] ignoredFileNames = [];
+	char[][] ignoredFileExts = ["o", "a", "swp"];
+
+protected:
+	// some options
+	bool usePrint0;
+	bool printOneTimeOnly;
+	bool printNames;
+	bool printLinesNumbers;
+	bool printWholeLines;
+	FilePath[] rootPaths;
+
+
+public:
+	this() {
+		printNames = true;
+		printLinesNumbers = true;
+		printWholeLines = false;
 	}
 
-	Match[] matches;
+	void start() {
 
-	this(char[] regex) {
-		this.regex = Regex(regex);
+		if (regex is null) {
+			regex = Regex(".*");
+			printOneTimeOnly = true;
+			printLinesNumbers = false;
+		}
+
+		if (printNames) {
+			matchFormat ~= "{0}";
+		}
+
+		if (printNames && printLinesNumbers) {
+			matchFormat ~= ":";
+		}
+
+		if (printLinesNumbers) {
+			matchFormat ~= "{1}";
+		}
+
+		if (printWholeLines) {
+			matchFormat ~= " {2}";
+		}
+
+		if (usePrint0) {
+			matchFormat ~= "\0";
+		} else {
+			matchFormat ~= "\n";
+		}
+
+		foreach(path; rootPaths) {
+			processPath(path);
+		}
 	}
 
 	bool shouldProcessDir(FilePath path) {
@@ -39,44 +86,8 @@ class DAck {
 
 	void processDir(FilePath path) {
 		foreach (entry; path.toList) {
-			if (entry.isFolder()) {
-				if (shouldProcessDir(entry)) {
-					processDir(entry);
-				}
-			} else {
-				if (shouldProcessFile(entry)) {
-					processFile(entry);
-				}
-			}
+			processPath(entry);
 		}
-	}
-
-	void processFile(FilePath path) {
-		auto input = new LineInput (new FileInput(path.toString()));
-		scope(exit) { input.close; }
-		auto line_num = 0;
-		try {
-			foreach (line; input) {
-				if (regex.test(line)) {
-					addMatch(path, line_num);
-				}
-				++line_num;
-			}
-		} catch (IOException e) {
-			Stderr.format ("{}:{} - ERROR: {}\n",
-				path.toString(), line_num,
-				e.toString()
-				);
-		}
-	}
-
-	void addMatch(FilePath path, int line) {
-		Match new_match;
-		new_match.path = path;
-		new_match.line = line;
-
-		// TODO: make more efficient
-		matches ~= new_match;
 	}
 
 	bool shouldProcessFile(FilePath path) {
@@ -97,21 +108,75 @@ class DAck {
 		return true;
 	}
 
-	void printMatches() {
-		foreach(match; matches) {
-			 Stdout.format ("{}:{}\n", match.path.toString(), match.line);
+	void processFile(FilePath path) {
+		auto line_num = 0;
+		try {
+			auto input = new LineInput (new FileInput(path.toString()));
+			scope(exit) { input.close; }
+			foreach (line; input) {
+				if (regex.test(line)) {
+					printMatch(path, line_num, line);
+					if (printOneTimeOnly) {
+						return;
+					}
+				}
+				++line_num;
+			}
+		} catch (IOException e) {
+			Stderr.format ("{}:{} - ERROR: {}\n",
+				path.toString(), line_num,
+				e.toString()
+				);
 		}
+	}
+
+	void processPath(FilePath path) {
+		if (path.isFolder()) {
+			if (shouldProcessDir(path)) {
+				processDir(path);
+			}
+		} else {
+			if (shouldProcessFile(path)) {
+				processFile(path);
+			}
+		}
+	}
+
+	void printMatch(FilePath path, int line, char[] wholeLine) {
+		Stdout.format (matchFormat, path.toString(), line, wholeLine);
 	}
 }
 
-void main(char[][] args) {
-	if (args.length < 2) {
-		return -1;
+class DAckCmdLine : public DAck {
+
+	this(char[][] args) {
+
+		auto arg_parser = new ArgParser();
+		arg_parser.bindPosix("print0", &this.parsePrint0);
+		arg_parser.bindDefault(&this.defaultArg);
+		arg_parser.parse(args[1 .. $]);
+
+		if (rootPaths.length == 0) {
+			rootPaths ~= new FilePath(".");
+		}
 	}
 
-	auto regex = args[1];
-	auto dack = new DAck(regex);
+	void parsePrint0(char[] ) {
+		usePrint0 = true;
+	}
 
-	dack.processDir(new FilePath("."));
-	dack.printMatches();
+	void defaultArg(char[] arg, uint ordinal) {
+		if (ordinal == 0) {
+			regex = Regex(arg);
+		} else {
+			rootPaths ~= new FilePath(arg);
+		}
+	}
+
+}
+
+void main(char[][] args) {
+	auto dack= new DAckCmdLine(args);
+
+	dack.start();
 }
