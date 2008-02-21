@@ -1,10 +1,14 @@
+# D compiler
+DC=dmd
+DCFLAGS="-D"
+
 all:
-	dmd dack.d
+	$(DC) $(DCFLAGS) dack.d
 
 rel: release
 
 release:
-	dmd dack.d -release -O
+	$(DC) $(DCFLAGS) dack.d -release -O
 
 all_dsss:
 	dsss build

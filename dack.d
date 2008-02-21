@@ -29,32 +29,81 @@ import
 	tango.util.ArgParser
 	;
 
+/**
+ * Main class.
+ *
+ * DAck class takes care of processing
+ * all paths and looking for matches.
+ */
 class DAck {
 private:
+	/**
+	 * Regex we are looking for in files.
+	 */
 	Regex regex;
+
+	/**
+	 * Format used to output
+	 * a match.
+	 */
 	char[] matchFormat;
 
+	/**
+	 * Dir names that should be ignored.
+	 */
 	char[][] ignoredDirNames = [".svn", ".git"];
+
+	/**
+	 * Names of files that should be ignored.
+	 */
 	char[][] ignoredFileNames = [];
+
+	/**
+	 * Extensions of files that should be ignored.
+	 */
 	char[][] ignoredFileExts = ["o", "a", "swp"];
 
 protected:
 	// some options
+	/**
+	 * True if output delimiter should be '\0' instead of '\n'.
+	 */
 	bool usePrint0;
+	/**
+	 * True if only first match in file should be printed.
+	 */
 	bool printOneTimeOnly;
+	/**
+	 * True if file names should be printed.
+	 */
 	bool printNames;
+	/**
+	 * True if match line should be printed.
+	 */
 	bool printLinesNumbers;
+	/**
+	 * True if content of matching line should be printed.
+	 */
 	bool printWholeLines;
+	/**
+	 * Root paths of processing.
+	 */
 	FilePath[] rootPaths;
 
 
 public:
+	/**
+	 * Just a Ctor.
+	 */
 	this() {
 		printNames = true;
 		printLinesNumbers = true;
 		printWholeLines = false;
 	}
 
+	/**
+	 * Start processing rootPaths.
+	 */
 	void start() {
 
 		if (regex is null) {
@@ -90,6 +139,14 @@ public:
 		}
 	}
 
+	/**
+	 * Decide if dir content should be processed
+	 * or it should be skipped.
+	 *
+	 * Returns:
+	 * false = dir should be skipped
+	 * true  = dir should be processed
+	 */
 	bool shouldProcessDir(FilePath path) {
 		auto name = path.name();
 
@@ -102,12 +159,23 @@ public:
 		return true;
 	}
 
+	/**
+	 * Process dir.
+	 */
 	void processDir(FilePath path) {
 		foreach (entry; path.toList) {
 			processPath(entry);
 		}
 	}
 
+	/**
+	 * Decide if file content should be processed
+	 * or it should be skipped.
+	 *
+	 * Returns:
+	 * false = file should be skipped
+	 * true  = file should be processed
+	 */
 	bool shouldProcessFile(FilePath path) {
 		auto ext = path.ext();
 		auto name = path.name();
@@ -126,6 +194,9 @@ public:
 		return true;
 	}
 
+	/**
+	 * Process file.
+	 */
 	void processFile(FilePath path) {
 		auto line_num = 0;
 		try {
@@ -148,6 +219,13 @@ public:
 		}
 	}
 
+	/**
+	 * Decide if given path should be processed.
+	 *
+	 * Returns:
+	 * false = path should be skipped
+	 * true  = path should be processed
+	 */
 	void processPath(FilePath path) {
 		if (path.isFolder()) {
 			if (shouldProcessDir(path)) {
@@ -160,11 +238,17 @@ public:
 		}
 	}
 
-	void printMatch(FilePath path, int line, char[] wholeLine) {
+	/**
+	 * Output one match.
+	 */
+	protected void printMatch(FilePath path, int line, char[] wholeLine) {
 		Stdout.format (matchFormat, path.toString(), line, wholeLine);
 	}
 }
 
+/**
+ * DAckCmdLine takes care of command line argument parsing.
+ */
 class DAckCmdLine : public DAck {
 
 	this(char[][] args) {
@@ -179,11 +263,11 @@ class DAckCmdLine : public DAck {
 		}
 	}
 
-	void parsePrint0(char[] ) {
+	protected void parsePrint0(char[] ) {
 		usePrint0 = true;
 	}
 
-	void defaultArg(char[] arg, uint ordinal) {
+	protected void defaultArg(char[] arg, uint ordinal) {
 		if (ordinal == 0) {
 			regex = Regex(arg);
 		} else {
