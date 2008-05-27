@@ -2,7 +2,9 @@
 DC=dmd
 DCFLAGS="-D"
 
-all:
+all: all_dsss
+
+all_make:
 	$(DC) $(DCFLAGS) dack.d
 
 rel: release
