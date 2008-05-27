@@ -211,8 +211,8 @@ public:
 				}
 				++line_num;
 			}
-		} catch (IOException e) {
-			Stderr.format ("{}:{} - ERROR: {}\n",
+		} catch (Object e) {
+			Stderr.format ("{}:{} - {}\n",
 				path.toString(), line_num,
 				e.toString()
 				);
